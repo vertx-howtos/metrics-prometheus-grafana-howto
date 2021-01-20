@@ -1,180 +1,325 @@
-= Template and instructions for the Eclipse Vert.x how-tos
-:author: Julien Ponge <julien.ponge@gmail.com>
-:toc:
-
-This repository can be cloned and used as a basis for creating a new Eclipse Vert.x how-to.
-It especially contains the https://jekyllrb.com/[Jekyll] and continuous integration configurations for publishing a how-to as a web page.
-
-== Conventions
-
-Each how-to is a self-contained Git repository of the https://github.com/vertx-howtos[corresponding organisation on GitHub].
-
-The how-to document is written using the https://asciidoctor.org/docs/what-is-asciidoc/[Asciidoc] text format in a file called `README.adoc` at the root of the Git repository.
-
-The accompanying source code is directly at the root of the Git repository.
-For instance a Maven `pom.xml` is co-located with `README.adoc` at the root of the repository.
-
-Projects should preferably have both Maven and Gradle build descriptors.
-An author who doesn't have knowledge of either of the tools can always ask for contributions.
-
-== Structure of a how-to
-
-A how-to is not a guide or a mini-book: it must be as concise as possible.
-
-In practice this means that each how-to must focus on a very narrow topic.
-It also means that the text must not deviate from the topic, and that the chosen example must be as simple as possible.
-
-The structure of a how-to must be as follows.
-
-=== What you will build
-
-- Explain the example scenario from a functional point of view.
-- Explain what the user can see when running the example.
-- Highlight the different pieces of code to be written and how they fit together.
-
-=== What you need
-
-- List all required tools to edit, build and run the how-to.
-- Do not hesitate to point to third-party resources (e.g., if you need Docker, say why you need it and point to its installation documentation).
-
-=== Create a project
-
-- Explain how to create the project.
-- Show the Maven / Gradle build descriptors.
-- For any third-party tool (e.g., running a database with Docker), also have a subsection to explain this.
-
-=== Implementation sections
-
-- Make one or multiple sections to show the implementation.
-- Make use of Asciidoc source code comments to highlight specific parts of the code.
-- The code must be included using https://asciidoctor.org/docs/asciidoc-syntax-quick-reference/#source-code[Asciidoc directives]. Remember that you can include fragments of code by using delimiter tags.
-
-=== Running the application
-
-- Always show the various options to run the application.
-
-=== Summary
-
-- Briefly recapitulate what was covered and learned in the how-to.
-
-=== See also
-
-- If possible, link to other how-tos.
-- If judicious, link to Vert.x or third-party documentation.
-
-== How is the website being rendered?
-
-The website is being rendered using Jekyll and the Asciidoctor extension for Jekyll.
-
-There is a https://github.com/vertx-howtos/vertx-howtos-jekyll-theme[Jekyll theme] published as a Ruby Gem, so every how-to uses a common theme.
-
-=== Asciidoctor attributes
-
-The common theme depends on the following attributes to be set right below the title header:
-
-[source,text]
-----
-= My awesome how-to
+= Expose Vert.x Metrics for Prometheus, visualize in Grafana
 :page-permalink: /
-:page-github: vertx-howtos/my-howto
+:page-github: vertx-howtos/metrics-prometheus-grafana-howto
+
+ifdef::env-github[]
+image:https://travis-ci.org/vertx-howtos/metrics-prometheus-grafana-howto.svg?branch=master["Build Status", link="https://travis-ci.org/vertx-howtos/metrics-prometheus-grafana-howto"]
+endif::env-github[]
+
+This document will show you how to expose Vert.x Metrics for Prometheus and visualize them in Grafana.
+
+== What you will build
+
+You will build a web server that:
+
+- generates greetings upon request on the `EventBus`
+- replies to `GET` requests on the `/greeting` path,
+- exposes metrics for Prometheus on the `/metrics` path.
+
+Then you will configure Prometheus to scrape the metrics and Grafana to visualize them.
+
+The application consists in a single file, the `MainVerticle` class
+
+== What you need
+
+* A text editor or IDE
+* Java 8 higher
+* Maven or Gradle
+* Prometheus (or Docker)
+* Grafana (or Docker)
+
+== Create a project
+
+The code of this project contains Maven and Gradle build files that are functionally equivalent.
+
+=== Using Maven
+
+Here is the content of the `pom.xml` file you should be using:
+
+ifdef::env-github[]
+link:pom.xml[Maven POM file]
+endif::env-github[]
+ifndef::env-github[]
+[source,xml,role="collapsed"]
+.Maven `pom.xml`
+----
+include::pom.xml[]
+----
+endif::env-github[]
+
+=== Using Gradle
+
+Assuming you use Gradle with the Kotlin DSL, here is what your `build.gradle.kts` file should look like:
+
+ifdef::env-github[]
+link:build.gradle.kts[Gradle build file]
+endif::env-github[]
+ifndef::env-github[]
+[source,kotlin,role="collapsed"]
+.Gradle `build.gradle.kts`
+----
+include::build.gradle.kts[]
+----
+endif::env-github[]
+
+== Implementing the server
+
+=== Greeting generator
+
+First, let's define a few greetings:
+
+ifdef::env-github[]
+link:src/main/java/io/vertx/howtos/metrics/MainVerticle.java[MainVerticle greetings constant]
+endif::env-github[]
+ifndef::env-github[]
+[source,java,role="collapsed"]
+.Java `src/main/java/io/vertx/howtos/metrics/MainVerticle.java`
+----
+include::src/main/java/io/vertx/howtos/metrics/MainVerticle.java[tag=greetings]
+----
+endif::env-github[]
+
+Then, we will define a consumer for the `greetings` address on the `EventBus`.
+This consumer picks a random greeting and returns it after an arbitrary amount of time:
+
+ifdef::env-github[]
+link:src/main/java/io/vertx/howtos/metrics/MainVerticle.java[MainVerticle consumer]
+endif::env-github[]
+ifndef::env-github[]
+[source,java,role="collapsed"]
+.Java `src/main/java/io/vertx/howtos/metrics/MainVerticle.java`
+----
+include::src/main/java/io/vertx/howtos/metrics/MainVerticle.java[tag=consumer]
+----
+endif::env-github[]
+
+=== HTTP server
+
+We'll need a Vert.x Web Router to start with:
+
+ifdef::env-github[]
+link:src/main/java/io/vertx/howtos/metrics/MainVerticle.java[MainVerticle router]
+endif::env-github[]
+ifndef::env-github[]
+[source,java,role="collapsed"]
+.Java `src/main/java/io/vertx/howtos/metrics/MainVerticle.java`
+----
+include::src/main/java/io/vertx/howtos/metrics/MainVerticle.java[tag=router]
+----
+endif::env-github[]
+
+Then let's create a handler for `GET` requests on the `greeting` path:
+
+ifdef::env-github[]
+link:src/main/java/io/vertx/howtos/metrics/MainVerticle.java[MainVerticle handler]
+endif::env-github[]
+ifndef::env-github[]
+[source,java,role="collapsed"]
+.Java `src/main/java/io/vertx/howtos/metrics/MainVerticle.java`
+----
+include::src/main/java/io/vertx/howtos/metrics/MainVerticle.java[tag=handler]
+----
+endif::env-github[]
+
+The Vert.x Micrometer Metrics module provides a Vert.x Web handler that comes in handy when you need to expose data in the Prometheus text format:
+
+ifdef::env-github[]
+link:src/main/java/io/vertx/howtos/metrics/MainVerticle.java[MainVerticle scraping]
+endif::env-github[]
+ifndef::env-github[]
+[source,java,role="collapsed"]
+.Java `src/main/java/io/vertx/howtos/metrics/MainVerticle.java`
+----
+include::src/main/java/io/vertx/howtos/metrics/MainVerticle.java[tag=scraping]
+----
+endif::env-github[]
+
+With the Vert.x Web Router configured, we can start the HTTP server:
+
+ifdef::env-github[]
+link:src/main/java/io/vertx/howtos/metrics/MainVerticle.java[MainVerticle http]
+endif::env-github[]
+ifndef::env-github[]
+[source,java,role="collapsed"]
+.Java `src/main/java/io/vertx/howtos/metrics/MainVerticle.java`
+----
+include::src/main/java/io/vertx/howtos/metrics/MainVerticle.java[tag=http]
+----
+endif::env-github[]
+
+// FIXME: explain the histogram part
+
+Lastly, the `MainVerticle` needs a `main` method:
+
+ifdef::env-github[]
+link:src/main/java/io/vertx/howtos/metrics/MainVerticle.java[MainVerticle main method]
+endif::env-github[]
+ifndef::env-github[]
+[source,java,role="collapsed"]
+.Java `src/main/java/io/vertx/howtos/metrics/MainVerticle.java`
+----
+include::src/main/java/io/vertx/howtos/metrics/MainVerticle.java[tag=main]
+----
+endif::env-github[]
+
+IMPORTANT: The Vert.x instance must be created with metrics options enabled.
+
+== Running the application
+
+You can run the application:
+
+* straight from your IDE or,
+* with Maven: `mvn compile exec:java`, or
+* with Gradle: `./gradlew run` (Linux, macOS) or `gradlew run` (Windows).
+
+The following examples use the https://httpie.org/[HTTPie] command line HTTP client.
+Please refer to the https://httpie.org/doc#installation[installation] documentation if you don't have it installed on your system yet.
+
+=== Testing the greeting server
+
+To get a greeting from the server, open your terminal and execute this:
+
+[source,shell]
+----
+http :8080/greeting
 ----
 
-The `page-permalink` attribute ensures that `README.adoc` is rendered as `index.html` rather than `README.adoc`.
+You should see something like:
 
-The `page-github` attribute must contain the joint GitHub organization and repository so it can properly link to the GitHub repository, provide a direct edition link, and more.
+----
+HTTP/1.1 200 OK
+content-length: 11
+content-type: text/plain
 
-=== Jekyll configuration
+Hola Mundo!
 
-The Jekyll configuration shall not have to be tweaked much, here is the basic configuration that we use:
+----
+
+=== Testing the metrics endpoint
+
+To get the metrics:
+
+[source,shell]
+----
+http :8080/metrics
+----
+
+// FIXME
+You should see something like:
+
+----
+HTTP/1.1 200 OK
+content-length: 3741
+content-type: text/plain; version=0.0.4; charset=utf-8
+
+# HELP vertx_eventbus_pending Number of messages not processed yet
+# TYPE vertx_eventbus_pending gauge
+vertx_eventbus_pending{side="local",} 0.0
+# HELP vertx_http_server_response_time_seconds_max Request processing time
+# TYPE vertx_http_server_response_time_seconds_max gauge
+vertx_http_server_response_time_seconds_max{code="200",method="GET",route="/greeting",} 0.134909966
+vertx_http_server_response_time_seconds_max{code="200",method="GET",route="/metrics",} 0.006705547
+# HELP vertx_http_server_response_time_seconds Request processing time
+# TYPE vertx_http_server_response_time_seconds summary
+vertx_http_server_response_time_seconds_count{code="200",method="GET",route="/greeting",} 1.0
+vertx_http_server_response_time_seconds_sum{code="200",method="GET",route="/greeting",} 0.134909966
+vertx_http_server_response_time_seconds_count{code="200",method="GET",route="/metrics",} 4.0
+vertx_http_server_response_time_seconds_sum{code="200",method="GET",route="/metrics",} 0.009780743
+# HELP vertx_eventbus_handlers Number of event bus handlers in use
+# TYPE vertx_eventbus_handlers gauge
+vertx_eventbus_handlers 1.0
+# HELP vertx_http_server_request_bytes_max Size of requests in bytes
+# TYPE vertx_http_server_request_bytes_max gauge
+vertx_http_server_request_bytes_max{method="GET",} 0.0
+# HELP vertx_http_server_request_bytes Size of requests in bytes
+# TYPE vertx_http_server_request_bytes summary
+vertx_http_server_request_bytes_count{method="GET",} 5.0
+vertx_http_server_request_bytes_sum{method="GET",} 0.0
+# HELP vertx_http_server_active_requests Number of requests being processed
+# TYPE vertx_http_server_active_requests gauge
+vertx_http_server_active_requests{method="GET",} 1.0
+# HELP vertx_eventbus_received_total Number of messages received
+# TYPE vertx_eventbus_received_total counter
+vertx_eventbus_received_total{side="local",} 1.0
+# HELP vertx_http_server_requests_total Number of processed requests
+# TYPE vertx_http_server_requests_total counter
+vertx_http_server_requests_total{code="200",method="GET",route="/greeting",} 1.0
+vertx_http_server_requests_total{code="200",method="GET",route="/metrics",} 4.0
+# HELP vertx_http_server_active_connections Number of opened connections to the server
+# TYPE vertx_http_server_active_connections gauge
+vertx_http_server_active_connections 1.0
+# HELP vertx_http_server_bytes_written_total Number of bytes sent by the server
+# TYPE vertx_http_server_bytes_written_total counter
+vertx_http_server_bytes_written_total 14335.0
+# HELP vertx_eventbus_delivered_total Number of messages delivered to handlers
+# TYPE vertx_eventbus_delivered_total counter
+vertx_eventbus_delivered_total{side="local",} 1.0
+# HELP vertx_eventbus_sent_total Number of messages sent (point-to-point)
+# TYPE vertx_eventbus_sent_total counter
+vertx_eventbus_sent_total{side="local",} 1.0
+# HELP vertx_eventbus_processed_total Number of processed messages
+# TYPE vertx_eventbus_processed_total counter
+vertx_eventbus_processed_total{side="local",} 1.0
+# HELP vertx_http_server_response_bytes_max Size of responses in bytes
+# TYPE vertx_http_server_response_bytes_max gauge
+vertx_http_server_response_bytes_max{code="200",method="GET",route="/greeting",} 11.0
+vertx_http_server_response_bytes_max{code="200",method="GET",route="/metrics",} 3740.0
+# HELP vertx_http_server_response_bytes Size of responses in bytes
+# TYPE vertx_http_server_response_bytes summary
+vertx_http_server_response_bytes_count{code="200",method="GET",route="/greeting",} 1.0
+vertx_http_server_response_bytes_sum{code="200",method="GET",route="/greeting",} 11.0
+vertx_http_server_response_bytes_count{code="200",method="GET",route="/metrics",} 4.0
+vertx_http_server_response_bytes_sum{code="200",method="GET",route="/metrics",} 14324.0
+
+----
+
+// FIXME: generate some load
+
+== Scraping with Prometheus
+
+If you're not familiar with Prometheus, check out the link:https://prometheus.io/docs/prometheus/latest/getting_started/[getting started guide].
+
+You need to configure the Prometheus server to scrape `localhost:8080`.
 
 [source,yaml]
 ----
-include::_config.yml[]
+  - job_name: 'vertx-8080'
+    static_configs:
+      - targets: ['localhost:8080']
 ----
 
-TIP: When running Jekyll, check the content of the `_site/` folder and adapt the `exclude` items to avoid pushing unnecessary content to the website.
+To run a pre-configured Prometheus server on your machine with Docker, clone the repository of this tutorial, open your terminal and execute this:
 
-=== Ruby environment
-
-It is strongly recommended to use either https://github.com/rbenv/rbenv[rbenv] or https://rvm.io/[RVM] for your Ruby installation.
-
-You will need https://bundler.io/[Bundler] to install all required dependencies:
-
+[source,bash]
 ----
-$ gem install bundler
+docker run --network host -v ${PWD}/prometheus:/etc/prometheus -it prom/prometheus
 ----
 
-You can then let _Bundler_ do the installation work:
+== Visualizing with Grafana
 
-----
-$ bundle install
-----
+If you're not familiar with Grafana, check out the link:https://grafana.com/docs/grafana/latest/guides/getting_started/[getting started guide].
 
-From time to time you may also update dependencies:
+To run a Grafana server on your machine with Docker, clone the repository of this tutorial, open your terminal and execute this:
 
+[source,bash]
 ----
-$ bundle update
-----
-
-The dependencies are specified in the `Gemfile` file:
-
-[source,ruby]
-----
-include::Gemfile[]
+docker run --network host -it grafana/grafana
 ----
 
-TIP: Keep the `vertx-howtos-jekyll-theme` dependency up-to-date!
+As a starting point, you can import the dashboard from `grafana/Vertx-Prometheus.json`.
+You should see something like:
 
-=== Running Jekyll
+.Dashboard
+image:grafana/dashboard.png[Dashboard]
 
-You can run Jekyll with a full auto-reload experience:
 
-----
-$ bundle exec jekyll server --watch --livereload
-----
+== Summary
 
-== How is the website being published?
+This document covered:
 
-The content first needs to be rendered by Jekyll, then the resulting web site files are being pushed to the repository `gh-pages` branch.
-GitHub pages then exposes the content of the `gh-pages` branch as the website.
+. setting up Vert.x to expose metrics for Prometheus,
+. visualizing metric data in Grafana.
 
-While you could do this manually, we automate the process with Travis-CI that also has a special deployment provider to further simplify the process.
+== See also
 
-=== Travis-CI configuration
-
-Feel-free to customize the `.travis.yml` configuration to check that your how-to code builds and passes tests, but keep the `deploy` tree close to that one:
-
-[source,yaml]
-----
-include::.travis.yml[]
-----
-
-`$GITHUB_TOKEN` is a Travis-CI secret to pass a GitHub API token so that the CI job can push to the `gh-pages` branch.
-It is configured on Travis-CI by a Vert.x project maintainer.
-
-Note that we only publish on the `master` branch, but pull-requests can still be tested.
-This also means that we are in a model where the `master` branch is the latest stable revision.
-
-=== Travis-CI cron job
-
-It is strongly advised to set-up a cron job in Travis-CI to regularly build a how-to.
-
-Building on a daily basis is a good option to ensure theme updates are quickly reflected.
-
-== Misc
-
-=== Code style
-
-There is a `.editorconfig` file in this template repository with the 2-space indentation style that we prefer in Vert.x.
-
-In any case, favour readability in samples:
-
-- do not hesitate to use blank lines,
-- do not over-engineer,
-- use explicit short private methods rather than complicated lambdas expressions.
-
-=== Asciidoc style
-
-Asciidoc does not enforce any style.
-
-We recommended that you follow the https://asciidoctor.org/docs/asciidoc-recommended-practices/[Asciidoctor recommended practices], and especially the https://asciidoctor.org/docs/asciidoc-recommended-practices/#one-sentence-per-line["One sentence per line"] rule.
+- https://vertx.io/docs/vertx-micrometer-metrics/java/[Vert.x Micrometer Metrics documentation]
