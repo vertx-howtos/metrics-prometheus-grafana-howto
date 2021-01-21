@@ -77,6 +77,11 @@ public class MainVerticle extends AbstractVerticle {
       .setMetricsOptions(metricsOptions);
     Vertx vertx = Vertx.vertx(vertxOptions);
 
+    /*
+     After the Vert.x instance has been created,
+     we can configure the metrics registry to enable histogram buckets
+     for percentile approximations.
+     */
     PrometheusMeterRegistry registry = (PrometheusMeterRegistry) BackendRegistries.getDefaultNow();
     registry.config().meterFilter(
       new MeterFilter() {
