@@ -46,15 +46,13 @@ public class MainVerticle extends AbstractVerticle {
     // end::router[]
     // tag::handler[]
     router.get("/greeting").handler(rc -> {
-      vertx.eventBus().<String>request("greetings", null, ar -> {
-        if (ar.succeeded()) {
-          Message<String> message = ar.result();
-          rc.response().putHeader("content-type", "text/plain").end(message.body());
-        } else {
-          ar.cause().printStackTrace();
+      vertx.eventBus().<String>request("greetings", null)
+        .map(Message::body)
+        .onSuccess(greeting -> rc.response().putHeader("content-type", "text/plain").end(greeting))
+        .onFailure(throwable -> {
+          throwable.printStackTrace();
           rc.fail(500);
-        }
-      });
+        });
     });
     // end::handler[]
     // tag::scraping[]
