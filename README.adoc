@@ -18,7 +18,7 @@ You will build a web server that:
 
 Then you will configure Prometheus to scrape the metrics and Grafana to visualize them.
 
-The application consists in a single file, the `MainVerticle` class
+The application fits in just a single `MainVerticle` class
 
 == What you need
 
