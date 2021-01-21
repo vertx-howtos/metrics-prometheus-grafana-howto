@@ -19,5 +19,5 @@ application {
 }
 
 tasks.wrapper {
-  gradleVersion = "5.2"
+  gradleVersion = "6.8"
 }
