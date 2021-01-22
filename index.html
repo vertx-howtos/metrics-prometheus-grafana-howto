@@ -1,0 +1,2020 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Expose Vert.x Metrics for Prometheus, visualize in Grafana | Eclipse Vert.x how-to</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.1/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr"
+    crossorigin="anonymous">
+  <link rel="icon" type="image/svg+xml" href="assets/images/vertx-square.svg">
+</head>
+
+<body>
+
+
+<nav class="navbar navbar-expand-lg sticky-top navbar-dark bg-purple mb-4 shadow-sm">
+  <a class="navbar-brand" href="/">
+    <img src="assets/images/vertx-square.svg" alt="Vert.x" width="40" height="40">
+    &nbsp; Eclipse Vert.x how-to
+  </a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav"
+    aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNav">
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" href="https://vertx.io/docs/"><i class="fas fa-lg fa-drafting-compass"></i> Vert.x docs</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="https://github.com/vertx-howtos/metrics-prometheus-grafana-howto"><i class="fab fa-lg fa-github"></i> Source
+          code</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="https://github.com/vertx-howtos/metrics-prometheus-grafana-howto/edit/master/README.adoc"><i
+            class="far fa-lg fa-edit"></i>
+          Edit this</a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="row">
+    <div class="col">
+      <h1>Expose Vert.x Metrics for Prometheus, visualize in Grafana</h1>
+      <div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>This document will show you how to expose Vert.x Metrics for Prometheus and visualize them in Grafana.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-you-will-build">What you will build</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>You will build a web server that:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>generates greetings upon request on the <code>EventBus</code></p>
+</li>
+<li>
+<p>replies to <code>GET</code> requests on the <code>/greeting</code> path,</p>
+</li>
+<li>
+<p>exposes metrics for Prometheus on the <code>/metrics</code> path.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Then you will configure Prometheus to scrape the metrics and Grafana to visualize them.</p>
+</div>
+<div class="paragraph">
+<p>The application fits in just a single <code>MainVerticle</code> class</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-you-need">What you need</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>A text editor or IDE</p>
+</li>
+<li>
+<p>Java 8 higher</p>
+</li>
+<li>
+<p>Maven or Gradle</p>
+</li>
+<li>
+<p>Prometheus (or Docker)</p>
+</li>
+<li>
+<p>Grafana (or Docker)</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="create-a-project">Create a project</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The code of this project contains Maven and Gradle build files that are functionally equivalent.</p>
+</div>
+<div class="sect2">
+<h3 id="using-maven">Using Maven</h3>
+<div class="paragraph">
+<p>Here is the content of the <code>pom.xml</code> file you should be using:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Maven <code>pom.xml</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="xml"><span style="color: #999999;font-weight: bold">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<span style="color: #000080">&lt;project</span> <span style="color: #008080">xmlns=</span><span style="color: #d14">"http://maven.apache.org/POM/4.0.0"</span>
+         <span style="color: #008080">xmlns:xsi=</span><span style="color: #d14">"http://www.w3.org/2001/XMLSchema-instance"</span>
+         <span style="color: #008080">xsi:schemaLocation=</span><span style="color: #d14">"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"</span><span style="color: #000080">&gt;</span>
+
+  <span style="color: #000080">&lt;modelVersion&gt;</span>4.0.0<span style="color: #000080">&lt;/modelVersion&gt;</span>
+
+  <span style="color: #000080">&lt;groupId&gt;</span>io.vertx.howtos<span style="color: #000080">&lt;/groupId&gt;</span>
+  <span style="color: #000080">&lt;artifactId&gt;</span>metrics-prometheus-grafana-howto<span style="color: #000080">&lt;/artifactId&gt;</span>
+  <span style="color: #000080">&lt;version&gt;</span>1.0-SNAPSHOT<span style="color: #000080">&lt;/version&gt;</span>
+
+  <span style="color: #000080">&lt;properties&gt;</span>
+    <span style="color: #000080">&lt;vertx.version&gt;</span>4.0.0<span style="color: #000080">&lt;/vertx.version&gt;</span>
+    <span style="color: #000080">&lt;maven.compiler.source&gt;</span>1.8<span style="color: #000080">&lt;/maven.compiler.source&gt;</span>
+    <span style="color: #000080">&lt;maven.compiler.target&gt;</span>1.8<span style="color: #000080">&lt;/maven.compiler.target&gt;</span>
+  <span style="color: #000080">&lt;/properties&gt;</span>
+
+  <span style="color: #000080">&lt;dependencyManagement&gt;</span>
+    <span style="color: #000080">&lt;dependencies&gt;</span>
+      <span style="color: #000080">&lt;dependency&gt;</span>
+        <span style="color: #000080">&lt;groupId&gt;</span>io.vertx<span style="color: #000080">&lt;/groupId&gt;</span>
+        <span style="color: #000080">&lt;artifactId&gt;</span>vertx-stack-depchain<span style="color: #000080">&lt;/artifactId&gt;</span>
+        <span style="color: #000080">&lt;version&gt;</span>${vertx.version}<span style="color: #000080">&lt;/version&gt;</span>
+        <span style="color: #000080">&lt;type&gt;</span>pom<span style="color: #000080">&lt;/type&gt;</span>
+        <span style="color: #000080">&lt;scope&gt;</span>import<span style="color: #000080">&lt;/scope&gt;</span>
+      <span style="color: #000080">&lt;/dependency&gt;</span>
+    <span style="color: #000080">&lt;/dependencies&gt;</span>
+  <span style="color: #000080">&lt;/dependencyManagement&gt;</span>
+
+  <span style="color: #000080">&lt;dependencies&gt;</span>
+    <span style="color: #000080">&lt;dependency&gt;</span>
+      <span style="color: #000080">&lt;groupId&gt;</span>io.vertx<span style="color: #000080">&lt;/groupId&gt;</span>
+      <span style="color: #000080">&lt;artifactId&gt;</span>vertx-web<span style="color: #000080">&lt;/artifactId&gt;</span>
+    <span style="color: #000080">&lt;/dependency&gt;</span>
+    <span style="color: #000080">&lt;dependency&gt;</span>
+      <span style="color: #000080">&lt;groupId&gt;</span>io.vertx<span style="color: #000080">&lt;/groupId&gt;</span>
+      <span style="color: #000080">&lt;artifactId&gt;</span>vertx-micrometer-metrics<span style="color: #000080">&lt;/artifactId&gt;</span>
+    <span style="color: #000080">&lt;/dependency&gt;</span>
+    <span style="color: #000080">&lt;dependency&gt;</span>
+      <span style="color: #000080">&lt;groupId&gt;</span>io.micrometer<span style="color: #000080">&lt;/groupId&gt;</span>
+      <span style="color: #000080">&lt;artifactId&gt;</span>micrometer-registry-prometheus<span style="color: #000080">&lt;/artifactId&gt;</span>
+      <span style="color: #000080">&lt;version&gt;</span>1.5.2<span style="color: #000080">&lt;/version&gt;</span>
+    <span style="color: #000080">&lt;/dependency&gt;</span>
+  <span style="color: #000080">&lt;/dependencies&gt;</span>
+
+  <span style="color: #000080">&lt;build&gt;</span>
+    <span style="color: #000080">&lt;plugins&gt;</span>
+      <span style="color: #000080">&lt;plugin&gt;</span>
+        <span style="color: #000080">&lt;groupId&gt;</span>org.codehaus.mojo<span style="color: #000080">&lt;/groupId&gt;</span>
+        <span style="color: #000080">&lt;artifactId&gt;</span>exec-maven-plugin<span style="color: #000080">&lt;/artifactId&gt;</span>
+        <span style="color: #000080">&lt;version&gt;</span>1.5.0<span style="color: #000080">&lt;/version&gt;</span>
+        <span style="color: #000080">&lt;configuration&gt;</span>
+          <span style="color: #000080">&lt;mainClass&gt;</span>io.vertx.howtos.metrics.MainVerticle<span style="color: #000080">&lt;/mainClass&gt;</span>
+        <span style="color: #000080">&lt;/configuration&gt;</span>
+      <span style="color: #000080">&lt;/plugin&gt;</span>
+    <span style="color: #000080">&lt;/plugins&gt;</span>
+  <span style="color: #000080">&lt;/build&gt;</span>
+
+<span style="color: #000080">&lt;/project&gt;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="using-gradle">Using Gradle</h3>
+<div class="paragraph">
+<p>Assuming you use Gradle with the Kotlin DSL, here is what your <code>build.gradle.kts</code> file should look like:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Gradle <code>build.gradle.kts</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="kotlin"><span style="color: #990000;font-weight: bold">plugins</span> <span style="background-color: #f8f8f8">{</span>
+  <span style="background-color: #f8f8f8">java</span>
+  <span style="background-color: #f8f8f8">application</span>
+<span style="background-color: #f8f8f8">}</span>
+
+<span style="color: #990000;font-weight: bold">repositories</span> <span style="background-color: #f8f8f8">{</span>
+  <span style="color: #990000;font-weight: bold">mavenCentral</span><span style="background-color: #f8f8f8">()</span>
+<span style="background-color: #f8f8f8">}</span>
+
+<span style="color: #990000;font-weight: bold">dependencies</span> <span style="background-color: #f8f8f8">{</span>
+  <span style="color: #000000;font-weight: bold">val</span> <span style="background-color: #f8f8f8">vertxVersion</span> <span style="background-color: #f8f8f8">=</span> <span style="color: #d14">"4.0.0"</span>
+  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.vertx:vertx-web:${vertxVersion}"</span><span style="background-color: #f8f8f8">)</span>
+  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.vertx:vertx-micrometer-metrics:${vertxVersion}"</span><span style="background-color: #f8f8f8">)</span>
+  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.micrometer:micrometer-registry-prometheus:1.5.2"</span><span style="background-color: #f8f8f8">)</span>
+<span style="background-color: #f8f8f8">}</span>
+
+<span style="color: #990000;font-weight: bold">application</span> <span style="background-color: #f8f8f8">{</span>
+  <span style="background-color: #f8f8f8">mainClassName</span> <span style="background-color: #f8f8f8">=</span> <span style="color: #d14">"io.vertx.howtos.metrics.MainVerticle"</span>
+<span style="background-color: #f8f8f8">}</span>
+
+<span style="background-color: #f8f8f8">tasks</span><span style="background-color: #f8f8f8">.</span><span style="color: #990000;font-weight: bold">wrapper</span> <span style="background-color: #f8f8f8">{</span>
+  <span style="background-color: #f8f8f8">gradleVersion</span> <span style="background-color: #f8f8f8">=</span> <span style="color: #d14">"6.8"</span>
+<span style="background-color: #f8f8f8">}</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="implementing-the-server">Implementing the server</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="greeting-generator">Greeting generator</h3>
+<div class="paragraph">
+<p>First, let&#8217;s define a few greetings:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Java <code>src/main/java/io/vertx/howtos/metrics/MainVerticle.java</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="java">  <span style="color: #000000;font-weight: bold">private</span> <span style="color: #000000;font-weight: bold">static</span> <span style="color: #000000;font-weight: bold">final</span> <span style="color: #445588;font-weight: bold">String</span><span style="color: #000000;font-weight: bold">[]</span> <span style="color: #008080">GREETINGS</span> <span style="color: #000000;font-weight: bold">=</span> <span style="color: #000000;font-weight: bold">{</span>
+    <span style="color: #d14">"Hello world!"</span><span style="color: #000000;font-weight: bold">,</span>
+    <span style="color: #d14">"Bonjour monde!"</span><span style="color: #000000;font-weight: bold">,</span>
+    <span style="color: #d14">"Hallo Welt!"</span><span style="color: #000000;font-weight: bold">,</span>
+    <span style="color: #d14">"Hola Mundo!"</span>
+  <span style="color: #000000;font-weight: bold">};</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then, we will define a consumer for the <code>greetings</code> address on the <code>EventBus</code>.
+This consumer picks a random greeting and returns it after an arbitrary amount of time:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Java <code>src/main/java/io/vertx/howtos/metrics/MainVerticle.java</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="java">    <span style="background-color: #f8f8f8">vertx</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">eventBus</span><span style="color: #000000;font-weight: bold">().</span><span style="color: #008080">consumer</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #d14">"greetings"</span><span style="color: #000000;font-weight: bold">,</span> <span style="background-color: #f8f8f8">msg</span> <span style="color: #000000;font-weight: bold">-&gt;</span> <span style="color: #000000;font-weight: bold">{</span>
+      <span style="color: #999988;font-style: italic">// Simulate processing time between 20ms and 100ms</span>
+      <span style="color: #445588;font-weight: bold">long</span> <span style="background-color: #f8f8f8">delay</span> <span style="color: #000000;font-weight: bold">=</span> <span style="color: #445588;font-weight: bold">ThreadLocalRandom</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">current</span><span style="color: #000000;font-weight: bold">().</span><span style="color: #008080">nextLong</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #009999">80</span><span style="color: #000000;font-weight: bold">)</span> <span style="color: #000000;font-weight: bold">+</span> <span style="color: #009999">20L</span><span style="color: #000000;font-weight: bold">;</span>
+      <span style="background-color: #f8f8f8">vertx</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">setTimer</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">delay</span><span style="color: #000000;font-weight: bold">,</span> <span style="background-color: #f8f8f8">l</span> <span style="color: #000000;font-weight: bold">-&gt;</span> <span style="color: #000000;font-weight: bold">{</span>
+        <span style="color: #999988;font-style: italic">// Choose greeting</span>
+        <span style="color: #445588;font-weight: bold">String</span> <span style="background-color: #f8f8f8">greeting</span> <span style="color: #000000;font-weight: bold">=</span> <span style="color: #008080">GREETINGS</span><span style="color: #000000;font-weight: bold">[</span><span style="color: #445588;font-weight: bold">ThreadLocalRandom</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">current</span><span style="color: #000000;font-weight: bold">().</span><span style="color: #008080">nextInt</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #008080">GREETINGS</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">length</span><span style="color: #000000;font-weight: bold">)];</span>
+        <span style="background-color: #f8f8f8">msg</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">reply</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">greeting</span><span style="color: #000000;font-weight: bold">);</span>
+      <span style="color: #000000;font-weight: bold">});</span>
+    <span style="color: #000000;font-weight: bold">});</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="http-server">HTTP server</h3>
+<div class="paragraph">
+<p>We&#8217;ll need a Vert.x Web Router to start with:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Java <code>src/main/java/io/vertx/howtos/metrics/MainVerticle.java</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="java">    <span style="color: #445588;font-weight: bold">Router</span> <span style="background-color: #f8f8f8">router</span> <span style="color: #000000;font-weight: bold">=</span> <span style="color: #445588;font-weight: bold">Router</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">router</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">vertx</span><span style="color: #000000;font-weight: bold">);</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then let&#8217;s create a handler for <code>GET</code> requests on the <code>greeting</code> path:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Java <code>src/main/java/io/vertx/howtos/metrics/MainVerticle.java</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="java">    <span style="background-color: #f8f8f8">router</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">get</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #d14">"/greeting"</span><span style="color: #000000;font-weight: bold">).</span><span style="color: #008080">handler</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">rc</span> <span style="color: #000000;font-weight: bold">-&gt;</span> <span style="color: #000000;font-weight: bold">{</span>
+      <span style="background-color: #f8f8f8">vertx</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">eventBus</span><span style="color: #000000;font-weight: bold">().&lt;</span><span style="color: #445588;font-weight: bold">String</span><span style="color: #000000;font-weight: bold">&gt;</span><span style="background-color: #f8f8f8">request</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #d14">"greetings"</span><span style="color: #000000;font-weight: bold">,</span> <span style="color: #000000;font-weight: bold">null</span><span style="color: #000000;font-weight: bold">)</span>
+        <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">map</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #990000;font-weight: bold">Message:</span><span style="color: #000000;font-weight: bold">:</span><span style="background-color: #f8f8f8">body</span><span style="color: #000000;font-weight: bold">)</span>
+        <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">onSuccess</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">greeting</span> <span style="color: #000000;font-weight: bold">-&gt;</span> <span style="background-color: #f8f8f8">rc</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">response</span><span style="color: #000000;font-weight: bold">().</span><span style="color: #008080">putHeader</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #d14">"content-type"</span><span style="color: #000000;font-weight: bold">,</span> <span style="color: #d14">"text/plain"</span><span style="color: #000000;font-weight: bold">).</span><span style="color: #008080">end</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">greeting</span><span style="color: #000000;font-weight: bold">))</span>
+        <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">onFailure</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">throwable</span> <span style="color: #000000;font-weight: bold">-&gt;</span> <span style="color: #000000;font-weight: bold">{</span>
+          <span style="background-color: #f8f8f8">throwable</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">printStackTrace</span><span style="color: #000000;font-weight: bold">();</span>
+          <span style="background-color: #f8f8f8">rc</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">fail</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #009999">500</span><span style="color: #000000;font-weight: bold">);</span>
+        <span style="color: #000000;font-weight: bold">});</span>
+    <span style="color: #000000;font-weight: bold">});</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The Vert.x Micrometer Metrics module provides a Vert.x Web handler that comes in handy when you need to expose data in the Prometheus text format:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Java <code>src/main/java/io/vertx/howtos/metrics/MainVerticle.java</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="java">    <span style="background-color: #f8f8f8">router</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">route</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #d14">"/metrics"</span><span style="color: #000000;font-weight: bold">).</span><span style="color: #008080">handler</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #445588;font-weight: bold">PrometheusScrapingHandler</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">create</span><span style="color: #000000;font-weight: bold">());</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With the Vert.x Web Router configured, we can start the HTTP server:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Java <code>src/main/java/io/vertx/howtos/metrics/MainVerticle.java</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="java">    <span style="background-color: #f8f8f8">vertx</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">createHttpServer</span><span style="color: #000000;font-weight: bold">()</span>
+      <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">requestHandler</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">router</span><span style="color: #000000;font-weight: bold">)</span>
+      <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">listen</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #009999">8080</span><span style="color: #000000;font-weight: bold">);</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Lastly, the <code>MainVerticle</code> needs a <code>main</code> method:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="title">Java <code>src/main/java/io/vertx/howtos/metrics/MainVerticle.java</code></div>
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="java">  <span style="color: #000000;font-weight: bold">public</span> <span style="color: #000000;font-weight: bold">static</span> <span style="color: #445588;font-weight: bold">void</span> <span style="color: #990000;font-weight: bold">main</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #445588;font-weight: bold">String</span><span style="color: #000000;font-weight: bold">[]</span> <span style="background-color: #f8f8f8">args</span><span style="color: #000000;font-weight: bold">)</span> <span style="color: #000000;font-weight: bold">{</span>
+    <span style="color: #445588;font-weight: bold">MicrometerMetricsOptions</span> <span style="background-color: #f8f8f8">metricsOptions</span> <span style="color: #000000;font-weight: bold">=</span> <span style="color: #000000;font-weight: bold">new</span> <span style="color: #445588;font-weight: bold">MicrometerMetricsOptions</span><span style="color: #000000;font-weight: bold">()</span>
+      <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">setEnabled</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #000000;font-weight: bold">true</span><span style="color: #000000;font-weight: bold">)</span>
+      <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">setPrometheusOptions</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #000000;font-weight: bold">new</span> <span style="color: #445588;font-weight: bold">VertxPrometheusOptions</span><span style="color: #000000;font-weight: bold">().</span><span style="color: #008080">setEnabled</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #000000;font-weight: bold">true</span><span style="color: #000000;font-weight: bold">));</span>
+    <span style="color: #445588;font-weight: bold">VertxOptions</span> <span style="background-color: #f8f8f8">vertxOptions</span> <span style="color: #000000;font-weight: bold">=</span> <span style="color: #000000;font-weight: bold">new</span> <span style="color: #445588;font-weight: bold">VertxOptions</span><span style="color: #000000;font-weight: bold">()</span>
+      <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">setMetricsOptions</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">metricsOptions</span><span style="color: #000000;font-weight: bold">);</span>
+    <span style="color: #445588;font-weight: bold">Vertx</span> <span style="background-color: #f8f8f8">vertx</span> <span style="color: #000000;font-weight: bold">=</span> <span style="color: #445588;font-weight: bold">Vertx</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">vertx</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">vertxOptions</span><span style="color: #000000;font-weight: bold">);</span>
+
+    <span style="color: #999988;font-style: italic">/*
+     After the Vert.x instance has been created,
+     we can configure the metrics registry to enable histogram buckets
+     for percentile approximations.
+     */</span>
+    <span style="color: #445588;font-weight: bold">PrometheusMeterRegistry</span> <span style="background-color: #f8f8f8">registry</span> <span style="color: #000000;font-weight: bold">=</span> <span style="color: #000000;font-weight: bold">(</span><span style="color: #445588;font-weight: bold">PrometheusMeterRegistry</span><span style="color: #000000;font-weight: bold">)</span> <span style="color: #445588;font-weight: bold">BackendRegistries</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">getDefaultNow</span><span style="color: #000000;font-weight: bold">();</span>
+    <span style="background-color: #f8f8f8">registry</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">config</span><span style="color: #000000;font-weight: bold">().</span><span style="color: #008080">meterFilter</span><span style="color: #000000;font-weight: bold">(</span>
+      <span style="color: #000000;font-weight: bold">new</span> <span style="color: #990000;font-weight: bold">MeterFilter</span><span style="color: #000000;font-weight: bold">()</span> <span style="color: #000000;font-weight: bold">{</span>
+        <span style="color: #3c5d5d;font-weight: bold">@Override</span>
+        <span style="color: #000000;font-weight: bold">public</span> <span style="color: #445588;font-weight: bold">DistributionStatisticConfig</span> <span style="color: #990000;font-weight: bold">configure</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #445588;font-weight: bold">Meter</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">Id</span> <span style="background-color: #f8f8f8">id</span><span style="color: #000000;font-weight: bold">,</span> <span style="color: #445588;font-weight: bold">DistributionStatisticConfig</span> <span style="background-color: #f8f8f8">config</span><span style="color: #000000;font-weight: bold">)</span> <span style="color: #000000;font-weight: bold">{</span>
+          <span style="color: #000000;font-weight: bold">return</span> <span style="color: #445588;font-weight: bold">DistributionStatisticConfig</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">builder</span><span style="color: #000000;font-weight: bold">()</span>
+            <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">percentilesHistogram</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #000000;font-weight: bold">true</span><span style="color: #000000;font-weight: bold">)</span>
+            <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">build</span><span style="color: #000000;font-weight: bold">()</span>
+            <span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">merge</span><span style="color: #000000;font-weight: bold">(</span><span style="background-color: #f8f8f8">config</span><span style="color: #000000;font-weight: bold">);</span>
+        <span style="color: #000000;font-weight: bold">}</span>
+      <span style="color: #000000;font-weight: bold">});</span>
+
+    <span style="background-color: #f8f8f8">vertx</span><span style="color: #000000;font-weight: bold">.</span><span style="color: #008080">deployVerticle</span><span style="color: #000000;font-weight: bold">(</span><span style="color: #000000;font-weight: bold">new</span> <span style="color: #445588;font-weight: bold">MainVerticle</span><span style="color: #000000;font-weight: bold">());</span>
+  <span style="color: #000000;font-weight: bold">}</span></code></pre>
+</div>
+</div>
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Important</div>
+</td>
+<td class="content">
+The Vert.x instance must be created with metrics options enabled.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="running-the-application">Running the application</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>You can run the application:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>straight from your IDE or,</p>
+</li>
+<li>
+<p>with Maven: <code>mvn compile exec:java</code>, or</p>
+</li>
+<li>
+<p>with Gradle: <code>./gradlew run</code> (Linux, macOS) or <code>gradlew run</code> (Windows).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The following examples use the <a href="https://httpie.org/">HTTPie</a> command line HTTP client.
+Please refer to the <a href="https://httpie.org/doc#installation">installation</a> documentation if you don&#8217;t have it installed on your system yet.</p>
+</div>
+<div class="sect2">
+<h3 id="testing-the-greeting-server">Testing the greeting server</h3>
+<div class="paragraph">
+<p>To get a greeting from the server, open your terminal and execute this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="shell">http :8080/greeting</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You should see something like:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>HTTP/1.1 200 OK
+content-length: 11
+content-type: text/plain
+
+Hola Mundo!</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="testing-the-metrics-endpoint">Testing the metrics endpoint</h3>
+<div class="paragraph">
+<p>To get the metrics:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="shell">http :8080/metrics</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You should see something like:</p>
+</div>
+<div class="listingblock collapsed">
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="text">HTTP/1.1 200 OK
+content-length: 135625
+content-type: text/plain; version=0.0.4; charset=utf-8
+
+# HELP vertx_http_server_request_bytes_max Size of requests in bytes
+# TYPE vertx_http_server_request_bytes_max gauge
+vertx_http_server_request_bytes_max{method="GET",} 0.0
+# HELP vertx_http_server_request_bytes Size of requests in bytes
+# TYPE vertx_http_server_request_bytes histogram
+vertx_http_server_request_bytes_bucket{method="GET",le="1.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="10.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="11.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="12.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="13.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="14.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="16.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="21.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="26.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="31.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="36.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="41.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="46.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="51.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="56.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="64.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="85.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="106.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="127.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="148.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="169.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="190.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="211.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="232.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="256.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="341.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="426.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="511.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="596.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="681.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="766.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="851.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="936.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1024.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1365.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1706.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2047.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2388.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2729.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3070.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3411.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3752.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4096.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5461.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6826.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8191.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9556.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="10921.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="12286.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="13651.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="15016.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="16384.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="21845.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="27306.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="32767.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="38228.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="43689.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="49150.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="54611.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="60072.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="65536.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="87381.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="109226.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="131071.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="152916.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="174761.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="196606.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="218451.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="240296.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="262144.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="349525.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="436906.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="524287.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="611668.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="699049.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="786430.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="873811.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="961192.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1048576.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1398101.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1747626.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2097151.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2446676.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2796201.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3145726.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3495251.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3844776.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4194304.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5592405.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6990506.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8388607.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9786708.0",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.1184809E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.258291E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.3981011E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.5379112E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.6777216E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.2369621E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.7962026E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.3554431E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.9146836E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.4739241E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.0331646E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.5924051E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.1516456E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.7108864E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.9478485E7",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.11848106E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.34217727E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.56587348E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.78956969E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.0132659E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.23696211E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.46065832E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.68435456E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.57913941E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.47392426E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.36870911E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.26349396E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.15827881E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.05306366E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.94784851E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.84263336E8",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.073741824E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.431655765E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.789569706E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.147483647E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.505397588E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.863311529E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.22122547E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.579139411E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.937053352E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.294967296E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.726623061E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.158278826E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.589934591E9",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.0021590356E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.1453246121E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.2884901886E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.4316557651E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.5748213416E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.7179869184E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.2906492245E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.8633115306E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.4359738367E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.0086361428E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.5812984489E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.153960755E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.7266230611E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.2992853672E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.8719476736E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.1625968981E10",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.14532461226E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.37438953471E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.60345445716E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.83251937961E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.06158430206E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.29064922451E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.51971414696E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.74877906944E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.66503875925E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.58129844906E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.49755813887E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.41381782868E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.33007751849E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.2463372083E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.16259689811E11",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.007885658792E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.099511627776E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.466015503701E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.832519379626E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.199023255551E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.565527131476E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.932031007401E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.298534883326E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.665038759251E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.031542635176E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.398046511104E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.864062014805E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.330077518506E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.796093022207E12",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.0262108525908E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.1728124029609E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.319413953331E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.4660155037011E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.6126170540712E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.7592186044416E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.3456248059221E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.9320310074026E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.5184372088831E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.1048434103636E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.6912496118441E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.2776558133246E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.8640620148051E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.4504682162856E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.0368744177664E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.3824992236885E13",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.17281240296106E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.40737488355327E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.64193736414548E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.87649984473769E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.1110623253299E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.34562480592211E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.58018728651432E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.81474976710656E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.75299968947541E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.69124961184426E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.62949953421311E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.56774945658196E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.50599937895081E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.44424930131966E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.38249922368851E14",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.032074914605736E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.125899906842624E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.501199875790165E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.876499844737706E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.251799813685247E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.627099782632788E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.002399751580329E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.37769972052787E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.752999689475411E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.128299658422952E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.503599627370496E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.004799503160661E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.505999378950826E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.007199254740991E15",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.0508399130531156E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.200959900632132E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.3510798882111486E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.5011998757901652E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.6513198633691816E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.8014398509481984E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.4019198012642644E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.0023997515803304E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.6028797018963968E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.2033596522124624E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.8038396025285288E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.4043195528445952E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.0047995031606608E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.6052794534767272E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.2057594037927936E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.6076792050570576E16",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.20095990063213232E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.44115188075855872E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.68134386088498528E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.92153584101141152E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.16172782113783808E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.40191980126426464E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.64211178139069088E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.8823037615171174E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.843071682022823E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.8038396025285293E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="5.7646075230342349E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="6.7253754435399411E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="7.6861433640456461E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="8.6469112845513523E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="9.6076792050570586E17",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.05684471255627635E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.15292150460684698E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.53722867280912922E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="1.92153584101141171E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.305843009213694E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="2.6901501774159764E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.0744573456182584E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.4587645138205409E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="3.8430716820228234E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="4.2273788502251054E18",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="+Inf",} 457.0
+vertx_http_server_request_bytes_bucket{method="GET",le="+Inf",} 457.0
+vertx_http_server_request_bytes_count{method="GET",} 457.0
+vertx_http_server_request_bytes_sum{method="GET",} 0.0
+# HELP vertx_eventbus_sent_total Number of messages sent (point-to-point)
+# TYPE vertx_eventbus_sent_total counter
+vertx_eventbus_sent_total{side="local",} 374.0
+# HELP vertx_eventbus_pending Number of messages not processed yet
+# TYPE vertx_eventbus_pending gauge
+vertx_eventbus_pending{side="local",} 0.0
+# HELP vertx_eventbus_handlers Number of event bus handlers in use
+# TYPE vertx_eventbus_handlers gauge
+vertx_eventbus_handlers 1.0
+# HELP vertx_http_server_bytes_written_total Number of bytes sent by the server
+# TYPE vertx_http_server_bytes_written_total counter
+vertx_http_server_bytes_written_total 9780468.0
+# HELP vertx_http_server_active_connections Number of opened connections to the server
+# TYPE vertx_http_server_active_connections gauge
+vertx_http_server_active_connections 2.0
+# HELP vertx_http_server_active_requests Number of requests being processed
+# TYPE vertx_http_server_active_requests gauge
+vertx_http_server_active_requests{method="GET",} 1.0
+# HELP vertx_http_server_response_time_seconds_max Request processing time
+# TYPE vertx_http_server_response_time_seconds_max gauge
+vertx_http_server_response_time_seconds_max{code="404",method="GET",route="",} 0.0
+vertx_http_server_response_time_seconds_max{code="200",method="GET",route="/greeting",} 0.100989462
+vertx_http_server_response_time_seconds_max{code="200",method="GET",route="/metrics",} 0.011732202
+# HELP vertx_http_server_response_time_seconds Request processing time
+# TYPE vertx_http_server_response_time_seconds histogram
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.001",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.001048576",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.001398101",} 1.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.001747626",} 3.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.002097151",} 3.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.002446676",} 3.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.002796201",} 3.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.003145726",} 3.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.003495251",} 3.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.003844776",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.004194304",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.005592405",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.006990506",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.008388607",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.009786708",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.011184809",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.01258291",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.013981011",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.015379112",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.016777216",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.022369621",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.027962026",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.033554431",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.039146836",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.044739241",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.050331646",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.055924051",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.061516456",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.067108864",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.089478485",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.111848106",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.134217727",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.156587348",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.178956969",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.20132659",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.223696211",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.246065832",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.268435456",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.357913941",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.447392426",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.536870911",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.626349396",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.715827881",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.805306366",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.894784851",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="0.984263336",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="1.073741824",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="1.431655765",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="1.789569706",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="2.147483647",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="2.505397588",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="2.863311529",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="3.22122547",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="3.579139411",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="3.937053352",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="4.294967296",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="5.726623061",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="7.158278826",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="8.589934591",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="10.021590356",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="11.453246121",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="12.884901886",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="14.316557651",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="15.748213416",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="17.179869184",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="22.906492245",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="28.633115306",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="30.0",} 4.0
+vertx_http_server_response_time_seconds_bucket{code="404",method="GET",route="",le="+Inf",} 4.0
+vertx_http_server_response_time_seconds_count{code="404",method="GET",route="",} 4.0
+vertx_http_server_response_time_seconds_sum{code="404",method="GET",route="",} 0.007577865
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.001",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.001048576",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.001398101",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.001747626",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.002097151",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.002446676",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.002796201",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.003145726",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.003495251",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.003844776",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.004194304",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.005592405",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.006990506",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.008388607",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.009786708",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.011184809",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.01258291",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.013981011",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.015379112",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.016777216",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.022369621",} 2.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.027962026",} 29.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.033554431",} 55.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.039146836",} 73.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.044739241",} 99.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.050331646",} 126.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.055924051",} 165.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.061516456",} 190.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.067108864",} 222.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.089478485",} 322.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.111848106",} 373.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.134217727",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.156587348",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.178956969",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.20132659",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.223696211",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.246065832",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.268435456",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.357913941",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.447392426",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.536870911",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.626349396",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.715827881",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.805306366",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.894784851",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="0.984263336",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="1.073741824",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="1.431655765",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="1.789569706",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="2.147483647",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="2.505397588",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="2.863311529",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="3.22122547",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="3.579139411",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="3.937053352",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="4.294967296",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="5.726623061",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="7.158278826",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="8.589934591",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="10.021590356",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="11.453246121",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="12.884901886",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="14.316557651",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="15.748213416",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="17.179869184",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="22.906492245",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="28.633115306",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="30.0",} 374.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/greeting",le="+Inf",} 374.0
+vertx_http_server_response_time_seconds_count{code="200",method="GET",route="/greeting",} 374.0
+vertx_http_server_response_time_seconds_sum{code="200",method="GET",route="/greeting",} 22.967729201
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.001",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.001048576",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.001398101",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.001747626",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.002097151",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.002446676",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.002796201",} 0.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.003145726",} 1.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.003495251",} 1.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.003844776",} 2.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.004194304",} 5.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.005592405",} 12.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.006990506",} 23.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.008388607",} 30.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.009786708",} 38.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.011184809",} 48.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.01258291",} 53.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.013981011",} 57.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.015379112",} 59.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.016777216",} 59.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.022369621",} 68.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.027962026",} 75.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.033554431",} 76.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.039146836",} 76.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.044739241",} 76.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.050331646",} 77.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.055924051",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.061516456",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.067108864",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.089478485",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.111848106",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.134217727",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.156587348",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.178956969",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.20132659",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.223696211",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.246065832",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.268435456",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.357913941",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.447392426",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.536870911",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.626349396",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.715827881",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.805306366",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.894784851",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="0.984263336",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="1.073741824",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="1.431655765",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="1.789569706",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="2.147483647",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="2.505397588",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="2.863311529",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="3.22122547",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="3.579139411",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="3.937053352",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="4.294967296",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="5.726623061",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="7.158278826",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="8.589934591",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="10.021590356",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="11.453246121",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="12.884901886",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="14.316557651",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="15.748213416",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="17.179869184",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="22.906492245",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="28.633115306",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="30.0",} 79.0
+vertx_http_server_response_time_seconds_bucket{code="200",method="GET",route="/metrics",le="+Inf",} 79.0
+vertx_http_server_response_time_seconds_count{code="200",method="GET",route="/metrics",} 79.0
+vertx_http_server_response_time_seconds_sum{code="200",method="GET",route="/metrics",} 1.03260256
+# HELP vertx_http_server_requests_total Number of processed requests
+# TYPE vertx_http_server_requests_total counter
+vertx_http_server_requests_total{code="404",method="GET",route="",} 4.0
+vertx_http_server_requests_total{code="200",method="GET",route="/greeting",} 374.0
+vertx_http_server_requests_total{code="200",method="GET",route="/metrics",} 79.0
+# HELP vertx_http_server_response_bytes_max Size of responses in bytes
+# TYPE vertx_http_server_response_bytes_max gauge
+vertx_http_server_response_bytes_max{code="404",method="GET",route="",} 0.0
+vertx_http_server_response_bytes_max{code="200",method="GET",route="/greeting",} 14.0
+vertx_http_server_response_bytes_max{code="200",method="GET",route="/metrics",} 135626.0
+# HELP vertx_http_server_response_bytes Size of responses in bytes
+# TYPE vertx_http_server_response_bytes histogram
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="10.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="11.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="12.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="13.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="14.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="16.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="21.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="26.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="31.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="36.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="41.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="46.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="51.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="56.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="64.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="85.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="106.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="127.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="148.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="169.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="190.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="211.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="232.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="256.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="341.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="426.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="511.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="596.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="681.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="766.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="851.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="936.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1024.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1365.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1706.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2047.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2388.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2729.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3070.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3411.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3752.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4096.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5461.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6826.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8191.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9556.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="10921.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="12286.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="13651.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="15016.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="16384.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="21845.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="27306.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="32767.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="38228.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="43689.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="49150.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="54611.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="60072.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="65536.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="87381.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="109226.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="131071.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="152916.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="174761.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="196606.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="218451.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="240296.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="262144.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="349525.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="436906.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="524287.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="611668.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="699049.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="786430.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="873811.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="961192.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1048576.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1398101.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1747626.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2097151.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2446676.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2796201.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3145726.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3495251.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3844776.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4194304.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5592405.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6990506.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8388607.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9786708.0",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.1184809E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.258291E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.3981011E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.5379112E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.6777216E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.2369621E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.7962026E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.3554431E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.9146836E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.4739241E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.0331646E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.5924051E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.1516456E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.7108864E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.9478485E7",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.11848106E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.34217727E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.56587348E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.78956969E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.0132659E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.23696211E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.46065832E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.68435456E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.57913941E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.47392426E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.36870911E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.26349396E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.15827881E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.05306366E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.94784851E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.84263336E8",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.073741824E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.431655765E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.789569706E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.147483647E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.505397588E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.863311529E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.22122547E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.579139411E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.937053352E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.294967296E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.726623061E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.158278826E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.589934591E9",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.0021590356E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.1453246121E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.2884901886E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.4316557651E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.5748213416E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.7179869184E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.2906492245E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.8633115306E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.4359738367E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.0086361428E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.5812984489E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.153960755E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.7266230611E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.2992853672E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.8719476736E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.1625968981E10",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.14532461226E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.37438953471E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.60345445716E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.83251937961E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.06158430206E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.29064922451E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.51971414696E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.74877906944E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.66503875925E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.58129844906E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.49755813887E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.41381782868E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.33007751849E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.2463372083E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.16259689811E11",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.007885658792E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.099511627776E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.466015503701E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.832519379626E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.199023255551E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.565527131476E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.932031007401E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.298534883326E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.665038759251E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.031542635176E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.398046511104E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.864062014805E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.330077518506E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.796093022207E12",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.0262108525908E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.1728124029609E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.319413953331E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.4660155037011E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.6126170540712E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.7592186044416E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.3456248059221E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.9320310074026E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.5184372088831E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.1048434103636E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.6912496118441E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.2776558133246E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.8640620148051E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.4504682162856E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.0368744177664E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.3824992236885E13",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.17281240296106E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.40737488355327E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.64193736414548E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.87649984473769E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.1110623253299E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.34562480592211E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.58018728651432E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.81474976710656E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.75299968947541E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.69124961184426E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.62949953421311E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.56774945658196E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.50599937895081E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.44424930131966E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.38249922368851E14",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.032074914605736E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.125899906842624E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.501199875790165E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.876499844737706E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.251799813685247E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.627099782632788E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.002399751580329E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.37769972052787E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.752999689475411E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.128299658422952E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.503599627370496E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.004799503160661E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.505999378950826E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.007199254740991E15",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.0508399130531156E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.200959900632132E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.3510798882111486E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.5011998757901652E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.6513198633691816E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.8014398509481984E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.4019198012642644E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.0023997515803304E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.6028797018963968E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.2033596522124624E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.8038396025285288E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.4043195528445952E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.0047995031606608E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.6052794534767272E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.2057594037927936E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.6076792050570576E16",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.20095990063213232E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.44115188075855872E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.68134386088498528E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.92153584101141152E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.16172782113783808E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.40191980126426464E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.64211178139069088E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.8823037615171174E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.843071682022823E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.8038396025285293E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="5.7646075230342349E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="6.7253754435399411E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="7.6861433640456461E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="8.6469112845513523E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="9.6076792050570586E17",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.05684471255627635E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.15292150460684698E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.53722867280912922E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="1.92153584101141171E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.305843009213694E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="2.6901501774159764E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.0744573456182584E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.4587645138205409E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="3.8430716820228234E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="4.2273788502251054E18",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="+Inf",} 4.0
+vertx_http_server_response_bytes_bucket{code="404",method="GET",route="",le="+Inf",} 4.0
+vertx_http_server_response_bytes_count{code="404",method="GET",route="",} 4.0
+vertx_http_server_response_bytes_sum{code="404",method="GET",route="",} 212.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="10.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="11.0",} 194.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="12.0",} 273.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="13.0",} 273.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="14.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="16.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="21.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="26.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="31.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="36.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="41.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="46.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="51.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="56.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="64.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="85.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="106.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="127.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="148.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="169.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="190.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="211.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="232.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="256.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="341.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="426.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="511.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="596.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="681.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="766.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="851.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="936.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1024.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1365.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1706.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2047.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2388.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2729.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3070.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3411.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3752.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4096.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5461.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6826.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8191.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9556.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="10921.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="12286.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="13651.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="15016.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="16384.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="21845.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="27306.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="32767.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="38228.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="43689.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="49150.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="54611.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="60072.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="65536.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="87381.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="109226.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="131071.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="152916.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="174761.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="196606.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="218451.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="240296.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="262144.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="349525.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="436906.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="524287.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="611668.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="699049.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="786430.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="873811.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="961192.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1048576.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1398101.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1747626.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2097151.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2446676.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2796201.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3145726.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3495251.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3844776.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4194304.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5592405.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6990506.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8388607.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9786708.0",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.1184809E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.258291E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.3981011E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.5379112E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.6777216E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.2369621E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.7962026E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.3554431E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.9146836E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.4739241E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.0331646E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.5924051E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.1516456E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.7108864E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.9478485E7",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.11848106E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.34217727E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.56587348E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.78956969E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.0132659E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.23696211E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.46065832E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.68435456E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.57913941E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.47392426E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.36870911E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.26349396E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.15827881E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.05306366E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.94784851E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.84263336E8",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.073741824E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.431655765E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.789569706E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.147483647E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.505397588E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.863311529E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.22122547E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.579139411E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.937053352E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.294967296E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.726623061E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.158278826E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.589934591E9",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.0021590356E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.1453246121E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.2884901886E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.4316557651E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.5748213416E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.7179869184E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.2906492245E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.8633115306E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.4359738367E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.0086361428E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.5812984489E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.153960755E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.7266230611E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.2992853672E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.8719476736E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.1625968981E10",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.14532461226E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.37438953471E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.60345445716E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.83251937961E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.06158430206E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.29064922451E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.51971414696E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.74877906944E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.66503875925E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.58129844906E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.49755813887E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.41381782868E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.33007751849E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.2463372083E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.16259689811E11",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.007885658792E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.099511627776E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.466015503701E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.832519379626E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.199023255551E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.565527131476E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.932031007401E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.298534883326E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.665038759251E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.031542635176E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.398046511104E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.864062014805E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.330077518506E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.796093022207E12",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.0262108525908E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.1728124029609E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.319413953331E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.4660155037011E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.6126170540712E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.7592186044416E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.3456248059221E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.9320310074026E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.5184372088831E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.1048434103636E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.6912496118441E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.2776558133246E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.8640620148051E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.4504682162856E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.0368744177664E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.3824992236885E13",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.17281240296106E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.40737488355327E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.64193736414548E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.87649984473769E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.1110623253299E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.34562480592211E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.58018728651432E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.81474976710656E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.75299968947541E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.69124961184426E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.62949953421311E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.56774945658196E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.50599937895081E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.44424930131966E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.38249922368851E14",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.032074914605736E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.125899906842624E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.501199875790165E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.876499844737706E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.251799813685247E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.627099782632788E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.002399751580329E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.37769972052787E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.752999689475411E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.128299658422952E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.503599627370496E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.004799503160661E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.505999378950826E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.007199254740991E15",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.0508399130531156E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.200959900632132E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.3510798882111486E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.5011998757901652E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.6513198633691816E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.8014398509481984E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.4019198012642644E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.0023997515803304E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.6028797018963968E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.2033596522124624E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.8038396025285288E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.4043195528445952E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.0047995031606608E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.6052794534767272E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.2057594037927936E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.6076792050570576E16",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.20095990063213232E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.44115188075855872E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.68134386088498528E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.92153584101141152E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.16172782113783808E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.40191980126426464E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.64211178139069088E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.8823037615171174E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.843071682022823E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.8038396025285293E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="5.7646075230342349E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="6.7253754435399411E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="7.6861433640456461E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="8.6469112845513523E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="9.6076792050570586E17",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.05684471255627635E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.15292150460684698E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.53722867280912922E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="1.92153584101141171E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.305843009213694E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="2.6901501774159764E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.0744573456182584E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.4587645138205409E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="3.8430716820228234E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="4.2273788502251054E18",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="+Inf",} 374.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/greeting",le="+Inf",} 374.0
+vertx_http_server_response_bytes_count{code="200",method="GET",route="/greeting",} 374.0
+vertx_http_server_response_bytes_sum{code="200",method="GET",route="/greeting",} 4496.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="10.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="11.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="12.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="13.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="14.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="16.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="21.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="26.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="31.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="36.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="41.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="46.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="51.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="56.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="64.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="85.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="106.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="127.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="148.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="169.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="190.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="211.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="232.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="256.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="341.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="426.0",} 0.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="511.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="596.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="681.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="766.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="851.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="936.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1024.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1365.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1706.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2047.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2388.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2729.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3070.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3411.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3752.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4096.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5461.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6826.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8191.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9556.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="10921.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="12286.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="13651.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="15016.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="16384.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="21845.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="27306.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="32767.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="38228.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="43689.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="49150.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="54611.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="60072.0",} 1.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="65536.0",} 10.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="87381.0",} 10.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="109226.0",} 13.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="131071.0",} 13.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="152916.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="174761.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="196606.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="218451.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="240296.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="262144.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="349525.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="436906.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="524287.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="611668.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="699049.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="786430.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="873811.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="961192.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1048576.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1398101.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1747626.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2097151.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2446676.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2796201.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3145726.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3495251.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3844776.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4194304.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5592405.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6990506.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8388607.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9786708.0",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.1184809E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.258291E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.3981011E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.5379112E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.6777216E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.2369621E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.7962026E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.3554431E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.9146836E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.4739241E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.0331646E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.5924051E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.1516456E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.7108864E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.9478485E7",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.11848106E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.34217727E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.56587348E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.78956969E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.0132659E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.23696211E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.46065832E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.68435456E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.57913941E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.47392426E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.36870911E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.26349396E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.15827881E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.05306366E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.94784851E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.84263336E8",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.073741824E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.431655765E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.789569706E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.147483647E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.505397588E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.863311529E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.22122547E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.579139411E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.937053352E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.294967296E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.726623061E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.158278826E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.589934591E9",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.0021590356E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.1453246121E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.2884901886E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.4316557651E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.5748213416E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.7179869184E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.2906492245E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.8633115306E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.4359738367E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.0086361428E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.5812984489E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.153960755E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.7266230611E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.2992853672E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.8719476736E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.1625968981E10",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.14532461226E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.37438953471E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.60345445716E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.83251937961E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.06158430206E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.29064922451E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.51971414696E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.74877906944E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.66503875925E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.58129844906E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.49755813887E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.41381782868E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.33007751849E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.2463372083E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.16259689811E11",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.007885658792E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.099511627776E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.466015503701E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.832519379626E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.199023255551E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.565527131476E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.932031007401E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.298534883326E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.665038759251E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.031542635176E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.398046511104E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.864062014805E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.330077518506E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.796093022207E12",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.0262108525908E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.1728124029609E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.319413953331E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.4660155037011E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.6126170540712E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.7592186044416E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.3456248059221E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.9320310074026E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.5184372088831E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.1048434103636E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.6912496118441E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.2776558133246E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.8640620148051E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.4504682162856E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.0368744177664E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.3824992236885E13",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.17281240296106E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.40737488355327E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.64193736414548E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.87649984473769E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.1110623253299E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.34562480592211E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.58018728651432E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.81474976710656E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.75299968947541E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.69124961184426E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.62949953421311E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.56774945658196E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.50599937895081E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.44424930131966E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.38249922368851E14",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.032074914605736E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.125899906842624E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.501199875790165E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.876499844737706E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.251799813685247E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.627099782632788E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.002399751580329E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.37769972052787E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.752999689475411E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.128299658422952E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.503599627370496E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.004799503160661E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.505999378950826E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.007199254740991E15",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.0508399130531156E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.200959900632132E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.3510798882111486E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.5011998757901652E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.6513198633691816E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.8014398509481984E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.4019198012642644E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.0023997515803304E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.6028797018963968E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.2033596522124624E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.8038396025285288E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.4043195528445952E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.0047995031606608E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.6052794534767272E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.2057594037927936E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.6076792050570576E16",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.20095990063213232E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.44115188075855872E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.68134386088498528E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.92153584101141152E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.16172782113783808E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.40191980126426464E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.64211178139069088E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.8823037615171174E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.843071682022823E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.8038396025285293E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="5.7646075230342349E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="6.7253754435399411E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="7.6861433640456461E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="8.6469112845513523E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="9.6076792050570586E17",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.05684471255627635E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.15292150460684698E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.53722867280912922E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="1.92153584101141171E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.305843009213694E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="2.6901501774159764E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.0744573456182584E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.4587645138205409E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="3.8430716820228234E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="4.2273788502251054E18",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="+Inf",} 79.0
+vertx_http_server_response_bytes_bucket{code="200",method="GET",route="/metrics",le="+Inf",} 79.0
+vertx_http_server_response_bytes_count{code="200",method="GET",route="/metrics",} 79.0
+vertx_http_server_response_bytes_sum{code="200",method="GET",route="/metrics",} 9775760.0
+# HELP vertx_eventbus_processed_total Number of processed messages
+# TYPE vertx_eventbus_processed_total counter
+vertx_eventbus_processed_total{side="local",} 374.0
+# HELP vertx_eventbus_received_total Number of messages received
+# TYPE vertx_eventbus_received_total counter
+vertx_eventbus_received_total{side="local",} 374.0
+# HELP vertx_eventbus_delivered_total Number of messages delivered to handlers
+# TYPE vertx_eventbus_delivered_total counter
+vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="scraping-with-prometheus">Scraping with Prometheus</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If you&#8217;re not familiar with Prometheus, check out the <a href="https://prometheus.io/docs/prometheus/latest/getting_started/">getting started guide</a>.</p>
+</div>
+<div class="paragraph">
+<p>You need to configure the Prometheus server to scrape <code>localhost:8080</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="yaml">  <span style="background-color: #f8f8f8">-</span> <span style="color: #008080">job_name</span><span style="background-color: #f8f8f8">:</span> <span style="color: #d14">'</span><span style="color: #d14">vertx-8080'</span>
+    <span style="color: #008080">static_configs</span><span style="background-color: #f8f8f8">:</span>
+      <span style="background-color: #f8f8f8">-</span> <span style="color: #008080">targets</span><span style="background-color: #f8f8f8">:</span> <span style="background-color: #f8f8f8">[</span><span style="color: #d14">'</span><span style="color: #d14">localhost:8080'</span><span style="background-color: #f8f8f8">]</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To run a pre-configured Prometheus server on your machine with Docker, clone the repository of this tutorial, open your terminal and execute this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="bash">docker run <span style="color: #000080">--network</span> host <span style="color: #000080">-v</span> <span style="color: #000000;font-weight: bold">${</span><span style="color: #008080">PWD</span><span style="color: #000000;font-weight: bold">}</span>/prometheus:/etc/prometheus <span style="color: #000080">-it</span> prom/prometheus</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="visualizing-with-grafana">Visualizing with Grafana</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If you&#8217;re not familiar with Grafana, check out the <a href="https://grafana.com/docs/grafana/latest/guides/getting_started/">getting started guide</a>.</p>
+</div>
+<div class="paragraph">
+<p>To run a Grafana server on your machine with Docker, clone the repository of this tutorial, open your terminal and execute this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight" style="background-color: #f8f8f8"><code data-lang="bash">docker run <span style="color: #000080">--network</span> host <span style="color: #000080">-it</span> grafana/grafana</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As a starting point, you can import the dashboard from <code>grafana/dashboard.json</code>.</p>
+</div>
+<div class="paragraph">
+<p>You should see something like:</p>
+</div>
+<div class="paragraph">
+<div class="title">Dashboard</div>
+<p><span class="image"><img src="grafana/dashboard.png" alt="Dashboard"></span></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="summary">Summary</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This document covered:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>setting up Vert.x to expose metrics for Prometheus,</p>
+</li>
+<li>
+<p>visualizing metric data in Grafana.</p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="see-also">See also</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://vertx.io/docs/vertx-micrometer-metrics/java/">Vert.x Micrometer Metrics documentation</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <!-- Sharingbutton Facebook -->
+<a class="resp-sharing-button__link" href="https://facebook.com/sharer/sharer.php?u=https://vertx-howtos.github.io/HOWTO-ID" target="_blank"
+    rel="noopener" aria-label="">
+    <div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--small">
+        <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path
+                    d="M18.77 7.46H14.5v-1.9c0-.9.6-1.1 1-1.1h3V.5h-4.33C10.24.5 9.5 3.44 9.5 5.32v2.15h-3v4h3v12h5v-12h3.85l.42-4z" />
+                </svg>
+        </div>
+    </div>
+</a>
+
+<!-- Sharingbutton Twitter -->
+<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;url=https://vertx-howtos.github.io/HOWTO-ID"
+    target="_blank" rel="noopener" aria-label="">
+    <div class="resp-sharing-button resp-sharing-button--twitter resp-sharing-button--small">
+        <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path
+                    d="M23.44 4.83c-.8.37-1.5.38-2.22.02.93-.56.98-.96 1.32-2.02-.88.52-1.86.9-2.9 1.1-.82-.88-2-1.43-3.3-1.43-2.5 0-4.55 2.04-4.55 4.54 0 .36.03.7.1 1.04-3.77-.2-7.12-2-9.36-4.75-.4.67-.6 1.45-.6 2.3 0 1.56.8 2.95 2 3.77-.74-.03-1.44-.23-2.05-.57v.06c0 2.2 1.56 4.03 3.64 4.44-.67.2-1.37.2-2.06.08.58 1.8 2.26 3.12 4.25 3.16C5.78 18.1 3.37 18.74 1 18.46c2 1.3 4.4 2.04 6.97 2.04 8.35 0 12.92-6.92 12.92-12.93 0-.2 0-.4-.02-.6.9-.63 1.96-1.22 2.56-2.14z" />
+                </svg>
+        </div>
+    </div>
+</a>
+
+<!-- Sharingbutton E-Mail -->
+<a class="resp-sharing-button__link" href="mailto:?subject=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;body=https://vertx-howtos.github.io/HOWTO-ID" target="_self" rel="noopener"
+    aria-label="">
+    <div class="resp-sharing-button resp-sharing-button--email resp-sharing-button--small">
+        <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path
+                    d="M22 4H2C.9 4 0 4.9 0 6v12c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM7.25 14.43l-3.5 2c-.08.05-.17.07-.25.07-.17 0-.34-.1-.43-.25-.14-.24-.06-.55.18-.68l3.5-2c.24-.14.55-.06.68.18.14.24.06.55-.18.68zm4.75.07c-.1 0-.2-.03-.27-.08l-8.5-5.5c-.23-.15-.3-.46-.15-.7.15-.22.46-.3.7-.14L12 13.4l8.23-5.32c.23-.15.54-.08.7.15.14.23.07.54-.16.7l-8.5 5.5c-.08.04-.17.07-.27.07zm8.93 1.75c-.1.16-.26.25-.43.25-.08 0-.17-.02-.25-.07l-3.5-2c-.24-.13-.32-.44-.18-.68s.44-.32.68-.18l3.5 2c.24.13.32.44.18.68z" />
+                </svg>
+        </div>
+    </div>
+</a>
+
+<!-- Sharingbutton LinkedIn -->
+<a class="resp-sharing-button__link"
+    href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://vertx-howtos.github.io/HOWTO-ID&amp;title=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;summary=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;source=https://vertx-howtos.github.io/HOWTO-ID"
+    target="_blank" rel="noopener" aria-label="">
+    <div class="resp-sharing-button resp-sharing-button--linkedin resp-sharing-button--small">
+        <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path
+                    d="M6.5 21.5h-5v-13h5v13zM4 6.5C2.5 6.5 1.5 5.3 1.5 4s1-2.4 2.5-2.4c1.6 0 2.5 1 2.6 2.5 0 1.4-1 2.5-2.6 2.5zm11.5 6c-1 0-2 1-2 2v7h-5v-13h5V10s1.6-1.5 4-1.5c3 0 5 2.2 5 6.3v6.7h-5v-7c0-1-1-2-2-2z" />
+                </svg>
+        </div>
+    </div>
+</a>
+
+<!-- Sharingbutton Reddit -->
+<a class="resp-sharing-button__link"
+    href="https://reddit.com/submit/?url=https://vertx-howtos.github.io/HOWTO-ID&amp;resubmit=true&amp;title=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana" target="_blank" rel="noopener"
+    aria-label="">
+    <div class="resp-sharing-button resp-sharing-button--reddit resp-sharing-button--small">
+        <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path
+                    d="M24 11.5c0-1.65-1.35-3-3-3-.96 0-1.86.48-2.42 1.24-1.64-1-3.75-1.64-6.07-1.72.08-1.1.4-3.05 1.52-3.7.72-.4 1.73-.24 3 .5C17.2 6.3 18.46 7.5 20 7.5c1.65 0 3-1.35 3-3s-1.35-3-3-3c-1.38 0-2.54.94-2.88 2.22-1.43-.72-2.64-.8-3.6-.25-1.64.94-1.95 3.47-2 4.55-2.33.08-4.45.7-6.1 1.72C4.86 8.98 3.96 8.5 3 8.5c-1.65 0-3 1.35-3 3 0 1.32.84 2.44 2.05 2.84-.03.22-.05.44-.05.66 0 3.86 4.5 7 10 7s10-3.14 10-7c0-.22-.02-.44-.05-.66 1.2-.4 2.05-1.54 2.05-2.84zM2.3 13.37C1.5 13.07 1 12.35 1 11.5c0-1.1.9-2 2-2 .64 0 1.22.32 1.6.82-1.1.85-1.92 1.9-2.3 3.05zm3.7.13c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm9.8 4.8c-1.08.63-2.42.96-3.8.96-1.4 0-2.74-.34-3.8-.95-.24-.13-.32-.44-.2-.68.15-.24.46-.32.7-.18 1.83 1.06 4.76 1.06 6.6 0 .23-.13.53-.05.67.2.14.23.06.54-.18.67zm.2-2.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm5.7-2.13c-.38-1.16-1.2-2.2-2.3-3.05.38-.5.97-.82 1.6-.82 1.1 0 2 .9 2 2 0 .84-.53 1.57-1.3 1.87z" />
+                </svg>
+        </div>
+    </div>
+</a>
+
+<!-- Sharingbutton WhatsApp -->
+<a class="resp-sharing-button__link" href="whatsapp://send?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana%20https://vertx-howtos.github.io/HOWTO-ID" target="_blank" rel="noopener"
+    aria-label="">
+    <div class="resp-sharing-button resp-sharing-button--whatsapp resp-sharing-button--small">
+        <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path
+                    d="M20.1 3.9C17.9 1.7 15 .5 12 .5 5.8.5.7 5.6.7 11.9c0 2 .5 3.9 1.5 5.6L.6 23.4l6-1.6c1.6.9 3.5 1.3 5.4 1.3 6.3 0 11.4-5.1 11.4-11.4-.1-2.8-1.2-5.7-3.3-7.8zM12 21.4c-1.7 0-3.3-.5-4.8-1.3l-.4-.2-3.5 1 1-3.4L4 17c-1-1.5-1.4-3.2-1.4-5.1 0-5.2 4.2-9.4 9.4-9.4 2.5 0 4.9 1 6.7 2.8 1.8 1.8 2.8 4.2 2.8 6.7-.1 5.2-4.3 9.4-9.5 9.4zm5.1-7.1c-.3-.1-1.7-.9-1.9-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.1-.2.2-.3.2-.6.1s-1.2-.5-2.3-1.4c-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6s.3-.3.4-.5c.2-.1.3-.3.4-.5.1-.2 0-.4 0-.5C10 9 9.3 7.6 9 7c-.1-.4-.4-.3-.5-.3h-.6s-.4.1-.7.3c-.3.3-1 1-1 2.4s1 2.8 1.1 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.6-.1 1.7-.7 1.9-1.3.2-.7.2-1.2.2-1.3-.1-.3-.3-.4-.6-.5z" />
+                </svg>
+        </div>
+    </div>
+</a>
+
+<!-- Sharingbutton Telegram -->
+<a class="resp-sharing-button__link" href="https://telegram.me/share/url?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;url=https://vertx-howtos.github.io/HOWTO-ID"
+    target="_blank" rel="noopener" aria-label="">
+    <div class="resp-sharing-button resp-sharing-button--telegram resp-sharing-button--small">
+        <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path
+                    d="M.707 8.475C.275 8.64 0 9.508 0 9.508s.284.867.718 1.03l5.09 1.897 1.986 6.38a1.102 1.102 0 0 0 1.75.527l2.96-2.41a.405.405 0 0 1 .494-.013l5.34 3.87a1.1 1.1 0 0 0 1.046.135 1.1 1.1 0 0 0 .682-.803l3.91-18.795A1.102 1.102 0 0 0 22.5.075L.706 8.475z" />
+                </svg>
+        </div>
+    </div>
+</a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <hr>
+      <p><small>Last published: 2021-01-22 12:57:29 +0000.</small></p>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const blocks = document.getElementsByClassName("collapsed");
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+      const blockWrapper = document.createElement("div");
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.innerHTML = "Details <em>(click to expand)</em>";
+      details.appendChild(summary);
+      details.appendChild(blockWrapper);
+      block.parentNode.insertBefore(details, block);
+      blockWrapper.appendChild(block);
+    }
+  })();
+</script>
+
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+    crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.6/umd/popper.min.js" integrity="sha384-wHAiFfRlMFy6i5SRaxvfOCifBUQy1xHdJ/yoi7FRNXMRBu5WHdZYu1hA6ZOblgut"
+    crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js" integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k"
+    crossorigin="anonymous"></script>
+</body>
+
+</html>
