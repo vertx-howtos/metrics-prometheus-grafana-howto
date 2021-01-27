@@ -3,7 +3,7 @@
 :page-github: vertx-howtos/metrics-prometheus-grafana-howto
 
 ifdef::env-github[]
-image:https://travis-ci.org/vertx-howtos/metrics-prometheus-grafana-howto.svg?branch=master["Build Status", link="https://travis-ci.org/vertx-howtos/metrics-prometheus-grafana-howto"]
+image:https://github.com/vertx-howtos/metrics-prometheus-grafana-howto/workflows/Publish%20the%20how-to/badge.svg["Build Status", link="https://github.com/vertx-howtos/metrics-prometheus-grafana-howto/actions?query=workflow%3A%22Publish+the+how-to%22"]
 endif::env-github[]
 
 This document will show you how to expose Vert.x Metrics for Prometheus and visualize them in Grafana.
