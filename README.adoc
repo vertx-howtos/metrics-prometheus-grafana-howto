@@ -23,7 +23,7 @@ The application fits in just a single `MainVerticle` class
 == What you need
 
 * A text editor or IDE
-* Java 8 higher
+* Java 11 or higher
 * Maven or Gradle
 * Prometheus (or Docker)
 * Grafana (or Docker)
