@@ -89,7 +89,7 @@
 <p>A text editor or IDE</p>
 </li>
 <li>
-<p>Java 8 higher</p>
+<p>Java 11 or higher</p>
 </li>
 <li>
 <p>Maven or Gradle</p>
@@ -130,9 +130,7 @@
   <span style="color: #000080">&lt;version&gt;</span>1.0-SNAPSHOT<span style="color: #000080">&lt;/version&gt;</span>
 
   <span style="color: #000080">&lt;properties&gt;</span>
-    <span style="color: #000080">&lt;vertx.version&gt;</span>4.0.0<span style="color: #000080">&lt;/vertx.version&gt;</span>
-    <span style="color: #000080">&lt;maven.compiler.source&gt;</span>1.8<span style="color: #000080">&lt;/maven.compiler.source&gt;</span>
-    <span style="color: #000080">&lt;maven.compiler.target&gt;</span>1.8<span style="color: #000080">&lt;/maven.compiler.target&gt;</span>
+    <span style="color: #000080">&lt;vertx.version&gt;</span>4.4.0<span style="color: #000080">&lt;/vertx.version&gt;</span>
   <span style="color: #000080">&lt;/properties&gt;</span>
 
   <span style="color: #000080">&lt;dependencyManagement&gt;</span>
@@ -159,12 +157,20 @@
     <span style="color: #000080">&lt;dependency&gt;</span>
       <span style="color: #000080">&lt;groupId&gt;</span>io.micrometer<span style="color: #000080">&lt;/groupId&gt;</span>
       <span style="color: #000080">&lt;artifactId&gt;</span>micrometer-registry-prometheus<span style="color: #000080">&lt;/artifactId&gt;</span>
-      <span style="color: #000080">&lt;version&gt;</span>1.5.2<span style="color: #000080">&lt;/version&gt;</span>
+      <span style="color: #000080">&lt;version&gt;</span>1.10.5<span style="color: #000080">&lt;/version&gt;</span>
     <span style="color: #000080">&lt;/dependency&gt;</span>
   <span style="color: #000080">&lt;/dependencies&gt;</span>
 
   <span style="color: #000080">&lt;build&gt;</span>
     <span style="color: #000080">&lt;plugins&gt;</span>
+      <span style="color: #000080">&lt;plugin&gt;</span>
+        <span style="color: #000080">&lt;groupId&gt;</span>org.apache.maven.plugins<span style="color: #000080">&lt;/groupId&gt;</span>
+        <span style="color: #000080">&lt;artifactId&gt;</span>maven-compiler-plugin<span style="color: #000080">&lt;/artifactId&gt;</span>
+        <span style="color: #000080">&lt;version&gt;</span>3.11.0<span style="color: #000080">&lt;/version&gt;</span>
+        <span style="color: #000080">&lt;configuration&gt;</span>
+          <span style="color: #000080">&lt;release&gt;</span>11<span style="color: #000080">&lt;/release&gt;</span>
+        <span style="color: #000080">&lt;/configuration&gt;</span>
+      <span style="color: #000080">&lt;/plugin&gt;</span>
       <span style="color: #000080">&lt;plugin&gt;</span>
         <span style="color: #000080">&lt;groupId&gt;</span>org.codehaus.mojo<span style="color: #000080">&lt;/groupId&gt;</span>
         <span style="color: #000080">&lt;artifactId&gt;</span>exec-maven-plugin<span style="color: #000080">&lt;/artifactId&gt;</span>
@@ -197,11 +203,17 @@
   <span style="color: #990000;font-weight: bold">mavenCentral</span><span style="background-color: #f8f8f8">()</span>
 <span style="background-color: #f8f8f8">}</span>
 
+<span style="color: #990000;font-weight: bold">java</span> <span style="background-color: #f8f8f8">{</span>
+  <span style="color: #990000;font-weight: bold">toolchain</span> <span style="background-color: #f8f8f8">{</span>
+    <span style="background-color: #f8f8f8">languageVersion</span><span style="background-color: #f8f8f8">.</span><span style="color: #000000;font-weight: bold">set</span><span style="background-color: #f8f8f8">(</span><span style="color: #445588;font-weight: bold">JavaLanguageVersion</span><span style="background-color: #f8f8f8">.</span><span style="color: #990000;font-weight: bold">of</span><span style="background-color: #f8f8f8">(</span><span style="color: #009999">11</span><span style="background-color: #f8f8f8">))</span>
+  <span style="background-color: #f8f8f8">}</span>
+<span style="background-color: #f8f8f8">}</span>
+
 <span style="color: #990000;font-weight: bold">dependencies</span> <span style="background-color: #f8f8f8">{</span>
-  <span style="color: #000000;font-weight: bold">val</span> <span style="background-color: #f8f8f8">vertxVersion</span> <span style="background-color: #f8f8f8">=</span> <span style="color: #d14">"4.0.0"</span>
-  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.vertx:vertx-web:${vertxVersion}"</span><span style="background-color: #f8f8f8">)</span>
-  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.vertx:vertx-micrometer-metrics:${vertxVersion}"</span><span style="background-color: #f8f8f8">)</span>
-  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.micrometer:micrometer-registry-prometheus:1.5.2"</span><span style="background-color: #f8f8f8">)</span>
+  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #990000;font-weight: bold">platform</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.vertx:vertx-stack-depchain:4.4.0"</span><span style="background-color: #f8f8f8">))</span>
+  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.vertx:vertx-web"</span><span style="background-color: #f8f8f8">)</span>
+  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.vertx:vertx-micrometer-metrics"</span><span style="background-color: #f8f8f8">)</span>
+  <span style="color: #990000;font-weight: bold">implementation</span><span style="background-color: #f8f8f8">(</span><span style="color: #d14">"io.micrometer:micrometer-registry-prometheus:1.10.5"</span><span style="background-color: #f8f8f8">)</span>
 <span style="background-color: #f8f8f8">}</span>
 
 <span style="color: #990000;font-weight: bold">application</span> <span style="background-color: #f8f8f8">{</span>
@@ -209,7 +221,7 @@
 <span style="background-color: #f8f8f8">}</span>
 
 <span style="background-color: #f8f8f8">tasks</span><span style="background-color: #f8f8f8">.</span><span style="color: #990000;font-weight: bold">wrapper</span> <span style="background-color: #f8f8f8">{</span>
-  <span style="background-color: #f8f8f8">gradleVersion</span> <span style="background-color: #f8f8f8">=</span> <span style="color: #d14">"6.8"</span>
+  <span style="background-color: #f8f8f8">gradleVersion</span> <span style="background-color: #f8f8f8">=</span> <span style="color: #d14">"7.6"</span>
 <span style="background-color: #f8f8f8">}</span></code></pre>
 </div>
 </div>
@@ -1890,7 +1902,7 @@ vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
   <div class="row">
     <div class="col">
       <!-- Sharingbutton Facebook -->
-<a class="resp-sharing-button__link" href="https://facebook.com/sharer/sharer.php?u=https://vertx-howtos.github.io/HOWTO-ID" target="_blank"
+<a class="resp-sharing-button__link" href="https://facebook.com/sharer/sharer.php?u=https://vertx-howtos.github.io/metrics-prometheus-grafana-howto" target="_blank"
     rel="noopener" aria-label="">
     <div class="resp-sharing-button resp-sharing-button--facebook resp-sharing-button--small">
         <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -1903,7 +1915,7 @@ vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
 </a>
 
 <!-- Sharingbutton Twitter -->
-<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;url=https://vertx-howtos.github.io/HOWTO-ID"
+<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;url=https://vertx-howtos.github.io/metrics-prometheus-grafana-howto"
     target="_blank" rel="noopener" aria-label="">
     <div class="resp-sharing-button resp-sharing-button--twitter resp-sharing-button--small">
         <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -1916,7 +1928,7 @@ vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
 </a>
 
 <!-- Sharingbutton E-Mail -->
-<a class="resp-sharing-button__link" href="mailto:?subject=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;body=https://vertx-howtos.github.io/HOWTO-ID" target="_self" rel="noopener"
+<a class="resp-sharing-button__link" href="mailto:?subject=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;body=https://vertx-howtos.github.io/metrics-prometheus-grafana-howto" target="_self" rel="noopener"
     aria-label="">
     <div class="resp-sharing-button resp-sharing-button--email resp-sharing-button--small">
         <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -1930,7 +1942,7 @@ vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
 
 <!-- Sharingbutton LinkedIn -->
 <a class="resp-sharing-button__link"
-    href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://vertx-howtos.github.io/HOWTO-ID&amp;title=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;summary=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;source=https://vertx-howtos.github.io/HOWTO-ID"
+    href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://vertx-howtos.github.io/metrics-prometheus-grafana-howto&amp;title=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;summary=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;source=https://vertx-howtos.github.io/metrics-prometheus-grafana-howto"
     target="_blank" rel="noopener" aria-label="">
     <div class="resp-sharing-button resp-sharing-button--linkedin resp-sharing-button--small">
         <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -1944,7 +1956,7 @@ vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
 
 <!-- Sharingbutton Reddit -->
 <a class="resp-sharing-button__link"
-    href="https://reddit.com/submit/?url=https://vertx-howtos.github.io/HOWTO-ID&amp;resubmit=true&amp;title=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana" target="_blank" rel="noopener"
+    href="https://reddit.com/submit/?url=https://vertx-howtos.github.io/metrics-prometheus-grafana-howto&amp;resubmit=true&amp;title=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana" target="_blank" rel="noopener"
     aria-label="">
     <div class="resp-sharing-button resp-sharing-button--reddit resp-sharing-button--small">
         <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -1957,7 +1969,7 @@ vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
 </a>
 
 <!-- Sharingbutton WhatsApp -->
-<a class="resp-sharing-button__link" href="whatsapp://send?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana%20https://vertx-howtos.github.io/HOWTO-ID" target="_blank" rel="noopener"
+<a class="resp-sharing-button__link" href="whatsapp://send?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana%20https://vertx-howtos.github.io/metrics-prometheus-grafana-howto" target="_blank" rel="noopener"
     aria-label="">
     <div class="resp-sharing-button resp-sharing-button--whatsapp resp-sharing-button--small">
         <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -1970,7 +1982,7 @@ vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
 </a>
 
 <!-- Sharingbutton Telegram -->
-<a class="resp-sharing-button__link" href="https://telegram.me/share/url?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;url=https://vertx-howtos.github.io/HOWTO-ID"
+<a class="resp-sharing-button__link" href="https://telegram.me/share/url?text=Expose%20Vert.x%20Metrics%20for%20Prometheus,%20visualize%20in%20Grafana&amp;url=https://vertx-howtos.github.io/metrics-prometheus-grafana-howto"
     target="_blank" rel="noopener" aria-label="">
     <div class="resp-sharing-button resp-sharing-button--telegram resp-sharing-button--small">
         <div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -1987,7 +1999,7 @@ vertx_eventbus_delivered_total{side="local",} 374.0</code></pre>
   <div class="row">
     <div class="col">
       <hr>
-      <p><small>Last published: 2021-05-22 00:25:12 +0000.</small></p>
+      <p><small>Last published: 2023-03-29 20:13:02 +0000.</small></p>
     </div>
   </div>
 </div>
