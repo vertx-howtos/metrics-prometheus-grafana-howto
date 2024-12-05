@@ -10,7 +10,7 @@
   <version>1.0-SNAPSHOT</version>
 
   <properties>
-    <vertx.version>4.4.0</vertx.version>
+    <vertx.version>5.0.0.CR2</vertx.version>
   </properties>
 
   <dependencyManagement>
@@ -37,7 +37,7 @@
     <dependency>
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-prometheus</artifactId>
-      <version>1.10.5</version>
+      <version>1.14.1</version>
     </dependency>
   </dependencies>
 
@@ -46,7 +46,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.11.0</version>
+        <version>3.13.0</version>
         <configuration>
           <release>11</release>
         </configuration>
@@ -54,7 +54,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>1.5.0</version>
+        <version>3.5.0</version>
         <configuration>
           <mainClass>io.vertx.howtos.metrics.MainVerticle</mainClass>
         </configuration>

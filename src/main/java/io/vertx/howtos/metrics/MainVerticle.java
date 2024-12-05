@@ -3,20 +3,23 @@ package io.vertx.howtos.metrics;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.config.MeterFilter;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
-import io.micrometer.prometheus.PrometheusMeterRegistry;
-import io.vertx.core.AbstractVerticle;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import io.vertx.core.Future;
+import io.vertx.core.VerticleBase;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.eventbus.Message;
+import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.Router;
+import io.vertx.micrometer.MicrometerMetricsFactory;
 import io.vertx.micrometer.MicrometerMetricsOptions;
 import io.vertx.micrometer.PrometheusScrapingHandler;
 import io.vertx.micrometer.VertxPrometheusOptions;
-import io.vertx.micrometer.backends.BackendRegistries;
 
 import java.util.concurrent.ThreadLocalRandom;
 
-public class MainVerticle extends AbstractVerticle {
+public class MainVerticle extends VerticleBase {
 
   // tag::greetings[]
   private static final String[] GREETINGS = {
@@ -28,9 +31,9 @@ public class MainVerticle extends AbstractVerticle {
   // end::greetings[]
 
   @Override
-  public void start() {
+  public Future<?> start() {
     // tag::consumer[]
-    vertx.eventBus().consumer("greetings", msg -> {
+    Future<Void> registration = vertx.eventBus().consumer("greetings", msg -> {
       // Simulate processing time between 20ms and 100ms
       long delay = ThreadLocalRandom.current().nextLong(80) + 20L;
       vertx.setTimer(delay, l -> {
@@ -38,7 +41,7 @@ public class MainVerticle extends AbstractVerticle {
         String greeting = GREETINGS[ThreadLocalRandom.current().nextInt(GREETINGS.length)];
         msg.reply(greeting);
       });
-    });
+    }).completion();
     // end::consumer[]
 
     // tag::router[]
@@ -60,27 +63,21 @@ public class MainVerticle extends AbstractVerticle {
     // end::scraping[]
 
     // tag::http[]
-    vertx.createHttpServer()
+    Future<HttpServer> httpServer = vertx.createHttpServer()
       .requestHandler(router)
       .listen(8080);
     // end::http[]
+
+    return Future.join(registration, httpServer);
   }
 
   // tag::main[]
   public static void main(String[] args) {
-    MicrometerMetricsOptions metricsOptions = new MicrometerMetricsOptions()
-      .setEnabled(true)
-      .setPrometheusOptions(new VertxPrometheusOptions().setEnabled(true));
-    VertxOptions vertxOptions = new VertxOptions()
-      .setMetricsOptions(metricsOptions);
-    Vertx vertx = Vertx.vertx(vertxOptions);
-
     /*
-     After the Vert.x instance has been created,
-     we can configure the metrics registry to enable histogram buckets
+     We can configure the metrics registry to enable histogram buckets
      for percentile approximations.
      */
-    PrometheusMeterRegistry registry = (PrometheusMeterRegistry) BackendRegistries.getDefaultNow();
+    PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
     registry.config().meterFilter(
       new MeterFilter() {
         @Override
@@ -92,7 +89,17 @@ public class MainVerticle extends AbstractVerticle {
         }
       });
 
-    vertx.deployVerticle(new MainVerticle());
+    Vertx vertx = Vertx.builder()
+      .with(new VertxOptions().setMetricsOptions(new MicrometerMetricsOptions()
+        .setEnabled(true)
+        .setPrometheusOptions(new VertxPrometheusOptions()
+          .setEnabled(true))
+      ))
+      .withMetrics(new MicrometerMetricsFactory(registry))
+      .build();
+
+    vertx.deployVerticle(new MainVerticle()).await();
+    System.out.println("Verticle started");
   }
   // end::main[]
 }
