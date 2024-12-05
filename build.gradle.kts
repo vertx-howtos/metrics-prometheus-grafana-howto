@@ -21,9 +21,5 @@ dependencies {
 }
 
 application {
-  mainClassName = "io.vertx.howtos.metrics.MainVerticle"
-}
-
-tasks.wrapper {
-  gradleVersion = "7.6"
+  mainClass = "io.vertx.howtos.metrics.MainVerticle"
 }
